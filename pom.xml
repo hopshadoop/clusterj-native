@@ -1,0 +1,46 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.mysql.ndb</groupId>
+    <artifactId>clusterj-platform</artifactId>
+    <version>7.4.6</version>
+    <packaging>jar</packaging>
+
+    <name>clusterj-native</name>
+    <url>http://kompics.sics.se</url>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+
+    <distributionManagement>
+        <repository>
+            <id>sics-release-repository</id>
+            <name>SICS Repository</name>
+            <url>scpexe://kompics.i.sics.se/home/maven/repository</url>
+        </repository>
+        <site>
+            <id>kompics-site</id>
+            <url>scpexe://kompics.i.sics.se/var/www/kompics/report/trunk</url>
+        </site>
+        <downloadUrl>http://kompics.i.sics.se/maven/repository</downloadUrl>
+    </distributionManagement>
+  
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>2.0</version>
+                <extensions>false</extensions>
+                <inherited>true</inherited>
+                <configuration>
+                    <classifier>natives-linux</classifier>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+
