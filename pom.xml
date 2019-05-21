@@ -4,7 +4,7 @@
 
     <groupId>com.mysql.ndb</groupId>
     <artifactId>clusterj-native</artifactId>
-    <version>7.6.9</version>
+    <version>7.6.10</version>
     <packaging>jar</packaging>
 
     <name>clusterj-native</name>
