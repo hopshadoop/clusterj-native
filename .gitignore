@@ -1,0 +1,6 @@
+# Per-platform libraries are copied in by deploy-native.sh at build time, never committed.
+natives/
+target/
+# Temporary copies deploy-native.sh makes while substituting the version placeholder.
+pom.xml.orig
+pom.xml.bak

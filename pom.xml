@@ -3,28 +3,29 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.mysql.ndb</groupId>
-    <artifactId>clusterj-native</artifactId>
+    <artifactId>libndbclient-multiarch</artifactId>
     <version>___RONDBVERSION___</version>
-    <packaging>jar</packaging>
+    <!-- 'pom' packaging: this project has no main jar. Every platform's libndbclient is
+         published as its own classified jar (linux-x86_64, linux-aarch64, macos-aarch64),
+         built and uploaded one at a time by deploy-native.sh. The pom is the only artifact
+         shared by all platforms. -->
+    <packaging>pom</packaging>
 
-    <name>clusterj-native</name>
-    <url>http://kompics.sics.se</url>
+    <name>libndbclient-multiarch</name>
+    <description>RonDB libndbclient native library, one classified jar per platform</description>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Passed by deploy-native.sh, e.g. -Dnative.classifier=linux-aarch64. It names both
+             the jar classifier and the source directory natives/<classifier>/. -->
+        <native.classifier>UNSET</native.classifier>
     </properties>
 
     <distributionManagement>
       <repository>
-      	<id>Hops</id>
-      	<name>Hops Repo</name>
-      	<url>https://archiva.hops.works/repository/Hops</url>
-      	<releases>
-        	<enabled>true</enabled>
-      	</releases>
-       	<snapshots>
-        	<enabled>true</enabled>
-      	</snapshots>
+        <id>HopsEE</id>
+        <name>Hops Repo</name>
+        <url>https://nexus.hops.works/repository/hops-artifacts</url>
       </repository>
     </distributionManagement>
 
@@ -33,30 +34,29 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
-                <version>2.0</version>
-                <extensions>false</extensions>
-                <inherited>true</inherited>
-                <configuration>
-                    <classifier>natives-linux</classifier>
-                </configuration>
-            </plugin>
-            <plugin>
-                <artifactId>maven-site-plugin</artifactId>
-                <version>3.2</version>
-                <configuration>
-                    <locales>en</locales>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-resources-plugin</artifactId>
-                <version>2.6</version>
-                <configuration>
-                    <encoding>${project.build.sourceEncoding}</encoding>
-                </configuration>
+                <!-- Pinned: works on Maven 3.2.5 through 3.9.x. -->
+                <version>3.3.0</version>
+                <executions>
+                    <execution>
+                        <id>native-jar</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>${native.classifier}</classifier>
+                            <classesDirectory>${project.basedir}/natives/${native.classifier}</classesDirectory>
+                            <archive>
+                                <!-- No META-INF/maven/**/pom.xml inside the jar. deploy-file
+                                     would otherwise find it and re-upload the pom next to
+                                     every jar, which a redeploy-blocking repository rejects
+                                     for the second and third platform. -->
+                                <addMavenDescriptor>false</addMavenDescriptor>
+                            </archive>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
-        
     </build>
 </project>
-

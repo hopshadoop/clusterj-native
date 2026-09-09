@@ -1,0 +1,97 @@
+libndbclient-multiarch
+======================
+
+Publishes RonDB's libndbclient native library to the Hops Nexus as a Maven artifact with
+one classified jar per platform, so HopsFS can pick the library for the machine it is
+built on.
+
+    groupId      com.mysql.ndb
+    artifactId   libndbclient-multiarch
+    version      the RonDB version, e.g. 26.02.11
+    packaging    pom   (no main jar; only the classified jars below)
+
+    classifier      platform         file in the jar
+    -------------   --------------   -------------------
+    linux-x86_64    Linux x86_64     libndbclient.so
+    linux-aarch64   Linux aarch64    libndbclient.so
+    macos-aarch64   macOS arm64      libndbclient.dylib
+
+Consumers depend on `com.mysql.ndb:libndbclient-multiarch:<version>` with the classifier
+selected by an OS/arch-activated Maven profile, and unpack the jar onto the Java library
+path. ClusterJ then loads it with System.loadLibrary("ndbclient").
+
+Branches
+--------
+* `multiarch`  this artifact. Cloned by the RonDB release pipeline
+               (rondb/build_scripts/release_scripts/deploy.sh) on RonDB 26.02 and later.
+* `jenkins`    legacy. Publishes the old `clusterj-native` artifact (single jar,
+               classifier natives-linux, x86_64 only). Frozen: older RonDB release lines
+               still clone it by name and released HopsFS versions depend on it.
+
+How deployment works
+--------------------
+Each platform's jar is built and uploaded by its own run of `deploy-native.sh`, on a
+machine that has that platform's library:
+
+* Linux x86_64 and Linux aarch64: automatically, by the two RonDB release Jenkins jobs.
+  They run concurrently and may finish in any order.
+* macOS arm64: manually, from a Mac (see below).
+
+Every run does the same thing: build the jar, make sure the shared pom is on the server
+(upload it only if it is missing, tolerate a concurrent identical upload), then upload its
+own jar. Whichever run finishes first uploads the pom; the others find it and skip it.
+A classified jar may sit on the server before the pom arrives; consumers can resolve it
+once the pom is there.
+
+The "is the pom already there" check downloads the pom through Maven, not curl, because
+the Nexus repository does not allow anonymous reads. It therefore needs the same server
+credentials as the upload, and it briefly removes and re-fetches that one version of the
+artifact in the local Maven repository so it compares against the server, not a cache.
+
+    deploy-native.sh <version> <classifier> <lib-file> [extra mvn args...]
+
+The committed pom carries the placeholder ___RONDBVERSION___. The script substitutes the
+version for the duration of the run and restores the placeholder afterwards. Nothing
+under natives/ or target/ is tracked.
+
+Manual macOS deployment
+-----------------------
+1. Build RonDB on the Mac and locate the resulting libndbclient.dylib.
+2. Make sure ~/.m2/settings.xml has a server entry for the Nexus repository:
+
+        <settings>
+          <servers>
+            <server>
+              <id>${JenkinsHops.RepoID}</id>
+              <username>${JenkinsHops.User}</username>
+              <password>${JenkinsHops.Password}</password>
+            </server>
+          </servers>
+        </settings>
+
+   (This is the same shape the RonDB build image uses. A plain entry with
+   <id>HopsEE</id> and literal credentials works too; then drop the -DJenkinsHops.* args.)
+
+3. Run:
+
+        git clone --branch multiarch https://github.com/hopshadoop/clusterj-native
+        cd clusterj-native
+        ./deploy-native.sh <version> macos-aarch64 /path/to/libndbclient.dylib \
+            -DJenkinsHops.RepoID=HopsEE -DJenkinsHops.User=<user> -DJenkinsHops.Password=<password>
+
+   <version> must be the RonDB version the Linux jobs publish, so all three jars share one pom.
+
+Testing locally without touching Nexus
+--------------------------------------
+Point the script at a file:// repository:
+
+    export DEPLOY_URL=file://$TMPDIR/libndb-repo DEPLOY_REPO_ID=local
+    ./deploy-native.sh 0.0.0-test macos-aarch64 /path/to/libndbclient.dylib
+    ./deploy-native.sh 0.0.0-test linux-x86_64  /path/to/libndbclient.so      # pom skipped
+    find $TMPDIR/libndb-repo -type f
+
+Resolve from it the way a consumer would:
+
+    mvn -N dependency:get \
+        -Dartifact=com.mysql.ndb:libndbclient-multiarch:0.0.0-test:jar:macos-aarch64 \
+        -DremoteRepositories=local::default::file://$TMPDIR/libndb-repo
