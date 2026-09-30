@@ -22,9 +22,12 @@ set -euo pipefail
 GROUP_ID=com.mysql.ndb
 ARTIFACT_ID=libndbclient-multiarch
 # Pinned and fully qualified so the result does not depend on the Maven version running us.
+# The RonDB build image runs Maven 3.5.4 (OracleLinux 8 RPM), so every pin must require
+# Maven <= 3.5.4: deploy 3.1.1 and dependency 3.6.1 need 3.2.5, help 3.2.0 needs 3.0
+# (help 3.4.0 needs 3.6.3 and refuses to run).
 DEPLOY_PLUGIN=org.apache.maven.plugins:maven-deploy-plugin:3.1.1
 DEPENDENCY_PLUGIN=org.apache.maven.plugins:maven-dependency-plugin:3.6.1
-HELP_PLUGIN=org.apache.maven.plugins:maven-help-plugin:3.4.0
+HELP_PLUGIN=org.apache.maven.plugins:maven-help-plugin:3.2.0
 DEPLOY_URL=${DEPLOY_URL:-https://nexus.hops.works/repository/hops-artifacts}
 DEPLOY_REPO_ID=${DEPLOY_REPO_ID:-HopsEE}
 
@@ -100,9 +103,17 @@ POM_URL="$DEPLOY_URL/$GROUP_PATH/$ARTIFACT_ID/$VERSION/$ARTIFACT_ID-$VERSION.pom
 # satisfy the request from the project itself (same coordinates) without asking the server.
 CHECK_DIR="$PWD/target/pom-check"
 mkdir -p "$CHECK_DIR"
-LOCAL_REPO=$(cd "$CHECK_DIR" && mvn -B -q $HELP_PLUGIN:evaluate -Dexpression=settings.localRepository -DforceStdout "$@" | tail -1)
-if [ ! -d "$LOCAL_REPO" ]; then
-  echo "Error: could not determine Maven's local repository (got '$LOCAL_REPO')" >&2
+# Maven logs errors to stdout, so on failure the command substitution would swallow them
+# and set -e would kill the script with no output at all: check explicitly and echo what
+# Maven said.
+set +e
+HELP_OUTPUT=$(cd "$CHECK_DIR" && mvn -B -q $HELP_PLUGIN:evaluate -Dexpression=settings.localRepository -DforceStdout "$@")
+HELP_RC=$?
+set -e
+LOCAL_REPO=$(echo "$HELP_OUTPUT" | tail -1)
+if [ $HELP_RC -ne 0 ] || [ ! -d "$LOCAL_REPO" ]; then
+  echo "Error: could not determine Maven's local repository (exit $HELP_RC). Maven said:" >&2
+  echo "$HELP_OUTPUT" >&2
   exit 1
 fi
 LOCAL_POM_DIR="$LOCAL_REPO/$GROUP_PATH/$ARTIFACT_ID/$VERSION"
